@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "IntelliCharge Setup",
+        "description": "Enter your IntelliCharge credentials",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "inverter_id": "Inverter ID"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to IntelliCharge. Please check your credentials."
+    },
+    "abort": {
+      "already_configured": "This inverter is already configured."
+    }
+  }
+}

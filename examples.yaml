@@ -1,0 +1,396 @@
+# Example Automations and Dashboards for IntelliCharge Integration
+
+## Example Automations
+
+### 1. Daily Energy Report Notification
+# Sends a notification at 8 AM with yesterday's energy summary
+
+automation:
+  - alias: "IntelliCharge Daily Energy Report"
+    trigger:
+      - platform: time
+        at: "08:00:00"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Daily Energy Report"
+          message: >
+            Yesterday's Energy Summary:
+            Consumed: {{ states('sensor.consumed_energy') }} kWh
+            Produced: {{ states('sensor.produced_energy') }} kWh
+            Savings: {{ states('sensor.savings_vs_no_system') }} {{ state_attr('sensor.savings_vs_no_system', 'unit_of_measurement') }}
+            ({{ states('sensor.savings_vs_no_system_pct') }}%)
+
+### 2. High Savings Alert
+# Alerts when savings exceed 20% compared to no system
+
+automation:
+  - alias: "IntelliCharge High Savings Alert"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.savings_vs_no_system_pct
+        above: 20
+    condition:
+      - condition: template
+        value_template: >
+          {{ (now() - state_attr('automation.intellicharge_high_savings_alert', 'last_triggered')).total_seconds() > 86400 }}
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Great Energy Savings!"
+          message: >
+            Your system is performing excellently!
+            You're saving {{ states('sensor.savings_vs_no_system_pct') }}% 
+            ({{ states('sensor.savings_vs_no_system') }} {{ state_attr('sensor.savings_vs_no_system', 'unit_of_measurement') }})
+            compared to having no solar system.
+
+### 3. Low Production Warning
+# Warns if solar production is unusually low
+
+automation:
+  - alias: "IntelliCharge Low Production Warning"
+    trigger:
+      - platform: time
+        at: "18:00:00"
+    condition:
+      - condition: numeric_state
+        entity_id: sensor.produced_energy
+        below: 5  # Adjust based on your typical production
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Low Solar Production"
+          message: >
+            Today's solar production is only {{ states('sensor.produced_energy') }} kWh.
+            This is lower than usual. Check if panels need cleaning or if there's an issue.
+
+### 4. Monthly Savings Summary
+# Sends a monthly summary on the 1st of each month
+
+automation:
+  - alias: "IntelliCharge Monthly Summary"
+    trigger:
+      - platform: time
+        at: "09:00:00"
+    condition:
+      - condition: template
+        value_template: "{{ now().day == 1 }}"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Monthly Energy Summary"
+          message: >
+            Last Month's Performance:
+            
+            Energy:
+            • Consumed: {{ states('sensor.consumed_energy') }} kWh
+            • Produced: {{ states('sensor.produced_energy') }} kWh
+            • Grid Import: {{ states('sensor.purchased_energy') }} kWh
+            • Grid Export: {{ states('sensor.sold_energy') }} kWh
+            
+            Savings:
+            • vs No System: {{ states('sensor.savings_vs_no_system') }} {{ state_attr('sensor.savings_vs_no_system', 'unit_of_measurement') }} ({{ states('sensor.savings_vs_no_system_pct') }}%)
+            • vs Self-Consumption: {{ states('sensor.savings_vs_self_consumption') }} {{ state_attr('sensor.savings_vs_self_consumption', 'unit_of_measurement') }}
+            
+            Keep up the great work! 🌞
+
+---
+
+## Example Lovelace Dashboards
+
+### Dashboard 1: Overview Card
+
+type: vertical-stack
+cards:
+  - type: markdown
+    content: |
+      ## ⚡ Energy Overview
+  - type: horizontal-stack
+    cards:
+      - type: statistic
+        entity: sensor.consumed_energy
+        name: Consumed
+        icon: mdi:flash
+        period:
+          calendar:
+            period: month
+      - type: statistic
+        entity: sensor.produced_energy
+        name: Produced
+        icon: mdi:solar-power
+        period:
+          calendar:
+            period: month
+  - type: horizontal-stack
+    cards:
+      - type: statistic
+        entity: sensor.purchased_energy
+        name: From Grid
+        icon: mdi:transmission-tower
+        period:
+          calendar:
+            period: month
+      - type: statistic
+        entity: sensor.sold_energy
+        name: To Grid
+        icon: mdi:transmission-tower-export
+        period:
+          calendar:
+            period: month
+
+### Dashboard 2: Financial Summary
+
+type: vertical-stack
+cards:
+  - type: markdown
+    content: |
+      ## 💰 Financial Summary
+  - type: glance
+    entities:
+      - entity: sensor.net_cost
+        name: Net Cost
+      - entity: sensor.purchase_cost
+        name: Purchase Cost
+      - entity: sensor.sell_revenue
+        name: Sell Revenue
+  - type: markdown
+    content: |
+      ## 📊 Savings Analysis
+  - type: entities
+    entities:
+      - entity: sensor.savings_vs_no_system
+        name: Savings vs No Solar
+        icon: mdi:piggy-bank
+      - entity: sensor.savings_vs_no_system_pct
+        name: Savings Percentage
+        icon: mdi:percent
+      - entity: sensor.savings_vs_self_consumption
+        name: Smart Optimization Benefit
+        icon: mdi:brain
+      - type: divider
+      - entity: sensor.no_system_net_cost
+        name: Cost Without Solar
+        icon: mdi:currency-usd-off
+
+### Dashboard 3: Detailed Comparison
+
+type: vertical-stack
+cards:
+  - type: markdown
+    content: |
+      ## 🔍 System Comparison
+      Compare your actual performance against alternative scenarios
+  - type: custom:bar-card
+    entities:
+      - entity: sensor.realised_net_cost
+        name: Your System
+        color: '#4caf50'
+      - entity: sensor.self_consumption_net_cost
+        name: Self-Consumption Only
+        color: '#ff9800'
+      - entity: sensor.no_system_net_cost
+        name: No Solar System
+        color: '#f44336'
+    title: Net Cost Comparison
+    height: 50px
+    width: 100%
+    positions:
+      icon: 'off'
+      name: inside
+      value: inside
+  - type: entities
+    title: Energy Flow Details
+    entities:
+      - type: section
+        label: Your Actual System
+      - entity: sensor.consumed_energy
+      - entity: sensor.produced_energy
+      - entity: sensor.purchased_energy
+      - entity: sensor.sold_energy
+      - type: section
+        label: Self-Consumption Mode
+      - entity: sensor.self_consumption_consumed
+      - entity: sensor.self_consumption_produced
+      - entity: sensor.self_consumption_purchased
+      - type: section
+        label: No System Scenario
+      - entity: sensor.no_system_consumed
+      - entity: sensor.no_system_purchased
+
+### Dashboard 4: Simple Status Card
+
+type: entities
+title: IntelliCharge Status
+entities:
+  - entity: sensor.consumed_energy
+    name: Energy Consumed
+    icon: mdi:flash
+  - entity: sensor.produced_energy
+    name: Solar Production
+    icon: mdi:solar-power
+  - entity: sensor.net_cost
+    name: Net Cost
+    icon: mdi:currency-usd
+  - entity: sensor.savings_vs_no_system
+    name: Total Savings
+    icon: mdi:piggy-bank
+  - entity: sensor.savings_vs_no_system_pct
+    name: Savings %
+    icon: mdi:percent
+show_header_toggle: false
+
+### Dashboard 5: Gauge Card for Savings
+
+type: gauge
+entity: sensor.savings_vs_no_system_pct
+name: Savings vs No System
+unit: '%'
+min: 0
+max: 100
+needle: true
+segments:
+  - from: 0
+    color: '#db4437'
+  - from: 5
+    color: '#ff9800'
+  - from: 10
+    color: '#4caf50'
+  - from: 20
+    color: '#0f9d58'
+
+### Dashboard 6: Energy Flow Sankey Diagram
+# Requires custom:sankey-chart card from HACS
+
+type: custom:sankey-chart
+entities:
+  - entity_id: sensor.produced_energy
+    children:
+      - entity_id: sensor.consumed_energy
+        color: '#4caf50'
+      - entity_id: sensor.sold_energy
+        color: '#2196f3'
+  - entity_id: sensor.purchased_energy
+    children:
+      - entity_id: sensor.consumed_energy
+        color: '#ff9800'
+title: Energy Flow
+height: 400
+show_names: true
+show_units: true
+
+### Dashboard 7: Historical Trends
+# Requires apex-charts card from HACS
+
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Energy Trends (Last 30 Days)
+graph_span: 30d
+span:
+  end: day
+series:
+  - entity: sensor.consumed_energy
+    name: Consumed
+    type: area
+    color: '#ff9800'
+  - entity: sensor.produced_energy
+    name: Produced
+    type: area
+    color: '#4caf50'
+  - entity: sensor.purchased_energy
+    name: Purchased
+    type: line
+    color: '#f44336'
+  - entity: sensor.sold_energy
+    name: Sold
+    type: line
+    color: '#2196f3'
+
+---
+
+## Scripting Examples
+
+### Script: Calculate Self-Sufficiency Rate
+
+script:
+  calculate_self_sufficiency:
+    alias: "Calculate Self-Sufficiency Rate"
+    sequence:
+      - service: notify.persistent_notification
+        data:
+          title: "Energy Self-Sufficiency"
+          message: >
+            {% set consumed = states('sensor.consumed_energy') | float %}
+            {% set produced = states('sensor.produced_energy') | float %}
+            {% set self_sufficiency = (produced / consumed * 100) | round(1) if consumed > 0 else 0 %}
+            
+            Self-Sufficiency Rate: {{ self_sufficiency }}%
+            
+            This means {{ self_sufficiency }}% of your energy needs 
+            are met by your solar production.
+
+### Script: Export Energy Data to CSV
+# Requires folder_watcher integration
+
+script:
+  export_intellicharge_data:
+    alias: "Export IntelliCharge Data"
+    sequence:
+      - service: notify.persistent_notification
+        data:
+          title: "Data Export"
+          message: |
+            Date: {{ now().strftime('%Y-%m-%d') }}
+            Consumed: {{ states('sensor.consumed_energy') }} kWh
+            Produced: {{ states('sensor.produced_energy') }} kWh
+            Purchased: {{ states('sensor.purchased_energy') }} kWh
+            Sold: {{ states('sensor.sold_energy') }} kWh
+            Net Cost: {{ states('sensor.net_cost') }} {{ state_attr('sensor.net_cost', 'unit_of_measurement') }}
+            Savings: {{ states('sensor.savings_vs_no_system') }} {{ state_attr('sensor.savings_vs_no_system', 'unit_of_measurement') }}
+
+---
+
+## Sensor Templates
+
+### Template Sensor: Self-Sufficiency Percentage
+
+sensor:
+  - platform: template
+    sensors:
+      intellicharge_self_sufficiency:
+        friendly_name: "Self-Sufficiency Rate"
+        unit_of_measurement: "%"
+        value_template: >
+          {% set consumed = states('sensor.consumed_energy') | float %}
+          {% set produced = states('sensor.produced_energy') | float %}
+          {{ ((produced / consumed * 100) | round(1)) if consumed > 0 else 0 }}
+        icon_template: mdi:solar-power
+
+### Template Sensor: Grid Independence
+
+sensor:
+  - platform: template
+    sensors:
+      intellicharge_grid_independence:
+        friendly_name: "Grid Independence"
+        unit_of_measurement: "%"
+        value_template: >
+          {% set consumed = states('sensor.consumed_energy') | float %}
+          {% set purchased = states('sensor.purchased_energy') | float %}
+          {% set independence = (1 - (purchased / consumed)) * 100 if consumed > 0 else 0 %}
+          {{ independence | round(1) }}
+        icon_template: mdi:transmission-tower-off
+
+### Template Sensor: Effective Energy Price
+
+sensor:
+  - platform: template
+    sensors:
+      intellicharge_effective_price:
+        friendly_name: "Effective Energy Price"
+        unit_of_measurement: "DKK/kWh"  # Change to your currency
+        value_template: >
+          {% set cost = states('sensor.net_cost') | float %}
+          {% set consumed = states('sensor.consumed_energy') | float %}
+          {{ (cost / consumed) | round(2) if consumed > 0 else 0 }}
+        icon_template: mdi:currency-usd
