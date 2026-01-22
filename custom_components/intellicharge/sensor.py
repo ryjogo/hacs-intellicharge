@@ -191,6 +191,12 @@ async def async_setup_entry(
             "summary",
             "self_consumption_to_no_system_pct",
         ),
+        # Custom charging rules sensor
+        IntelliChargeChargingRulesSensor(
+            coordinator,
+            "custom_charging_rules",
+            "Custom Charging Rules",
+        ),
     ]
 
     async_add_entities(sensors)
@@ -231,7 +237,8 @@ class IntelliChargeSensorBase(CoordinatorEntity, SensorEntity):
         return (
             self.coordinator.last_update_success
             and self.coordinator.data is not None
-            and "comparison" in self.coordinator.data
+            and "savings" in self.coordinator.data
+            and "comparison" in self.coordinator.data.get("savings", {})
         )
 
     def _get_value(self):
@@ -239,11 +246,12 @@ class IntelliChargeSensorBase(CoordinatorEntity, SensorEntity):
         if not self.available:
             return None
 
+        savings_data = self.coordinator.data.get("savings", {})
         if self._category == "summary":
-            return self.coordinator.data.get("summary", {}).get(self._field)
+            return savings_data.get("summary", {}).get(self._field)
         else:
             return (
-                self.coordinator.data.get("comparison", {})
+                savings_data.get("comparison", {})
                 .get(self._category, {})
                 .get(self._field)
             )
@@ -272,7 +280,8 @@ class IntelliChargeCostSensor(IntelliChargeSensorBase):
     def native_unit_of_measurement(self):
         """Return the unit of measurement."""
         if self.coordinator.data:
-            currency = self.coordinator.data.get("comparison", {}).get("currency", "DKK")
+            savings_data = self.coordinator.data.get("savings", {})
+            currency = savings_data.get("comparison", {}).get("currency", "DKK")
             return currency
         return "DKK"
 
@@ -295,3 +304,80 @@ class IntelliChargePercentageSensor(IntelliChargeSensorBase):
             # Convert decimal to percentage (0.13 -> 13)
             return round(value * 100, 2)
         return None
+
+
+class IntelliChargeChargingRulesSensor(CoordinatorEntity, SensorEntity):
+    """Sensor for custom charging rules."""
+
+    def __init__(
+        self,
+        coordinator: IntelliChargeDataUpdateCoordinator,
+        sensor_id: str,
+        name: str,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{sensor_id}"
+        self._attr_name = name
+        self._attr_has_entity_name = True
+        self._attr_icon = "mdi:battery-charging"
+
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
+            "name": "IntelliCharge",
+            "manufacturer": "IntelliCharge",
+            "model": "PVMS-EMS",
+        }
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.coordinator.data is not None
+            and "charging_rules" in self.coordinator.data
+        )
+
+    @property
+    def native_value(self):
+        """Return the state of the sensor."""
+        if not self.available:
+            return None
+
+        rules = self.coordinator.data.get("charging_rules", [])
+        return len(rules)
+
+    @property
+    def extra_state_attributes(self):
+        """Return the state attributes."""
+        if not self.available:
+            return {}
+
+        rules = self.coordinator.data.get("charging_rules", [])
+
+        # Format rules for display
+        formatted_rules = []
+        for i, rule in enumerate(rules):
+            days = []
+            for day in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
+                if rule.get(day):
+                    days.append(day[:3].capitalize())
+
+            formatted_rule = {
+                "days": ", ".join(days) if days else "None",
+                "time": f"{rule.get('valid_from', 'N/A')} - {rule.get('valid_to', 'N/A')}",
+                "max_charge": rule.get("max_charge"),
+                "max_discharge": rule.get("max_discharge"),
+                "max_battery_soc": rule.get("max_battery_soc"),
+                "min_battery_soc": rule.get("min_battery_soc"),
+                "min_battery_soc_for_sell": rule.get("min_battery_soc_for_sell"),
+            }
+            formatted_rules.append(formatted_rule)
+
+        return {
+            "rules": formatted_rules,
+            "raw_rules": rules,
+        }

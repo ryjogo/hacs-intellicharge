@@ -1,7 +1,7 @@
 {
   "domain": "intellicharge",
   "name": "IntelliCharge",
-  "codeowners": ["@yourusername"],
+  "codeowners": ["@ryjogo"],
   "config_flow": true,
   "documentation": "https://github.com/yourusername/intellicharge",
   "requirements": ["aiohttp>=3.8.0"],

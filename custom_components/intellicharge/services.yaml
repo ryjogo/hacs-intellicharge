@@ -1,0 +1,29 @@
+set_charging_rules:
+  name: Set charging rules
+  description: Set custom charging rules for the inverter
+  fields:
+    rules:
+      name: Rules
+      description: List of charging rules to apply
+      required: true
+      example: |
+        [
+          {
+            "monday": true,
+            "tuesday": true,
+            "wednesday": true,
+            "thursday": true,
+            "friday": true,
+            "saturday": true,
+            "sunday": true,
+            "valid_from": "00:00:00",
+            "valid_to": "23:59:59",
+            "max_charge": 4001,
+            "max_discharge": null,
+            "max_battery_soc": null,
+            "min_battery_soc": null,
+            "min_battery_soc_for_sell": null
+          }
+        ]
+      selector:
+        object:

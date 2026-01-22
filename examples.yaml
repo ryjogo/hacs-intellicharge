@@ -394,3 +394,256 @@ sensor:
           {% set consumed = states('sensor.consumed_energy') | float %}
           {{ (cost / consumed) | round(2) if consumed > 0 else 0 }}
         icon_template: mdi:currency-usd
+
+## Custom Charging Rules Examples
+
+### Example 1: Basic charging rule - All days, all time
+# Set a simple charging rule that applies every day
+
+service: intellicharge.set_charging_rules
+data:
+  rules:
+    - monday: true
+      tuesday: true
+      wednesday: true
+      thursday: true
+      friday: true
+      saturday: true
+      sunday: true
+      valid_from: "00:00:00"
+      valid_to: "23:59:59"
+      max_charge: 4001
+      max_discharge: null
+      max_battery_soc: null
+      min_battery_soc: null
+      min_battery_soc_for_sell: null
+
+### Example 2: Different rules for weekdays and weekends
+
+service: intellicharge.set_charging_rules
+data:
+  rules:
+    # Weekday rule - standard charging
+    - monday: true
+      tuesday: true
+      wednesday: true
+      thursday: true
+      friday: true
+      saturday: false
+      sunday: false
+      valid_from: "00:00:00"
+      valid_to: "23:59:59"
+      max_charge: 5000
+      max_discharge: 3000
+      max_battery_soc: 100
+      min_battery_soc: 20
+      min_battery_soc_for_sell: 50
+    # Weekend rule - reduced charging
+    - monday: false
+      tuesday: false
+      wednesday: false
+      thursday: false
+      friday: false
+      saturday: true
+      sunday: true
+      valid_from: "00:00:00"
+      valid_to: "23:59:59"
+      max_charge: 3000
+      max_discharge: 2000
+      max_battery_soc: 90
+      min_battery_soc: 30
+      min_battery_soc_for_sell: 60
+
+### Example 3: Time-based rules for peak/off-peak hours
+
+service: intellicharge.set_charging_rules
+data:
+  rules:
+    # Night time - high charging rate
+    - monday: true
+      tuesday: true
+      wednesday: true
+      thursday: true
+      friday: true
+      saturday: true
+      sunday: true
+      valid_from: "00:00:00"
+      valid_to: "06:00:00"
+      max_charge: 6000
+      max_discharge: 1000
+      max_battery_soc: 100
+      min_battery_soc: 20
+      min_battery_soc_for_sell: 80
+    # Day time - moderate charging
+    - monday: true
+      tuesday: true
+      wednesday: true
+      thursday: true
+      friday: true
+      saturday: true
+      sunday: true
+      valid_from: "06:00:00"
+      valid_to: "18:00:00"
+      max_charge: 4000
+      max_discharge: 3000
+      max_battery_soc: 95
+      min_battery_soc: 25
+      min_battery_soc_for_sell: 60
+    # Evening - peak hours, limited discharge
+    - monday: true
+      tuesday: true
+      wednesday: true
+      thursday: true
+      friday: true
+      saturday: true
+      sunday: true
+      valid_from: "18:00:00"
+      valid_to: "23:59:59"
+      max_charge: 3000
+      max_discharge: 4000
+      max_battery_soc: 90
+      min_battery_soc: 30
+      min_battery_soc_for_sell: 50
+
+### Example 4: Automation - Set charging rules based on electricity price
+
+automation:
+  - alias: "Set charging rules based on electricity price"
+    trigger:
+      - platform: state
+        entity_id: sensor.electricity_price
+    action:
+      - choose:
+          # Low price - maximize charging
+          - conditions:
+              - condition: numeric_state
+                entity_id: sensor.electricity_price
+                below: 0.50
+            sequence:
+              - service: intellicharge.set_charging_rules
+                data:
+                  rules:
+                    - monday: true
+                      tuesday: true
+                      wednesday: true
+                      thursday: true
+                      friday: true
+                      saturday: true
+                      sunday: true
+                      valid_from: "00:00:00"
+                      valid_to: "23:59:59"
+                      max_charge: 6000
+                      max_discharge: 1000
+                      max_battery_soc: 100
+                      min_battery_soc: 20
+                      min_battery_soc_for_sell: 90
+          # High price - maximize discharge
+          - conditions:
+              - condition: numeric_state
+                entity_id: sensor.electricity_price
+                above: 1.50
+            sequence:
+              - service: intellicharge.set_charging_rules
+                data:
+                  rules:
+                    - monday: true
+                      tuesday: true
+                      wednesday: true
+                      thursday: true
+                      friday: true
+                      saturday: true
+                      sunday: true
+                      valid_from: "00:00:00"
+                      valid_to: "23:59:59"
+                      max_charge: 2000
+                      max_discharge: 5000
+                      max_battery_soc: 80
+                      min_battery_soc: 30
+                      min_battery_soc_for_sell: 40
+        # Default - normal operation
+        default:
+          - service: intellicharge.set_charging_rules
+            data:
+              rules:
+                - monday: true
+                  tuesday: true
+                  wednesday: true
+                  thursday: true
+                  friday: true
+                  saturday: true
+                  sunday: true
+                  valid_from: "00:00:00"
+                  valid_to: "23:59:59"
+                  max_charge: 4000
+                  max_discharge: 3000
+                  max_battery_soc: 90
+                  min_battery_soc: 25
+                  min_battery_soc_for_sell: 60
+
+### Example 5: Automation - Weekend charging schedule
+
+automation:
+  - alias: "Set weekend charging rules"
+    trigger:
+      - platform: time
+        at: "00:00:01"
+    condition:
+      - condition: time
+        weekday:
+          - sat
+          - sun
+    action:
+      - service: intellicharge.set_charging_rules
+        data:
+          rules:
+            - monday: false
+              tuesday: false
+              wednesday: false
+              thursday: false
+              friday: false
+              saturday: true
+              sunday: true
+              valid_from: "00:00:00"
+              valid_to: "23:59:59"
+              max_charge: 3000
+              max_discharge: 2000
+              max_battery_soc: 90
+              min_battery_soc: 30
+              min_battery_soc_for_sell: 60
+
+## Dashboard Cards for Charging Rules
+
+### Card 1: Simple charging rules sensor
+type: entities
+title: IntelliCharge Charging Rules
+entities:
+  - entity: sensor.custom_charging_rules
+
+### Card 2: Detailed charging rules display
+type: markdown
+content: |
+  ## Active Charging Rules
+  {% set rules = state_attr('sensor.custom_charging_rules', 'rules') %}
+  {% if rules %}
+    **Total Rules**: {{ states('sensor.custom_charging_rules') }}
+    {% for rule in rules %}
+    
+    ### Rule {{ loop.index }}
+    - **Days**: {{ rule.days }}
+    - **Time**: {{ rule.time }}
+    - **Max Charge**: {{ rule.max_charge }}W
+    - **Max Discharge**: {{ rule.max_discharge if rule.max_discharge else 'Not set' }}
+    - **Max Battery SOC**: {{ rule.max_battery_soc if rule.max_battery_soc else 'Not set' }}%
+    - **Min Battery SOC**: {{ rule.min_battery_soc if rule.min_battery_soc else 'Not set' }}%
+    - **Min SOC for Sell**: {{ rule.min_battery_soc_for_sell if rule.min_battery_soc_for_sell else 'Not set' }}%
+    {% endfor %}
+  {% else %}
+    *No charging rules configured*
+  {% endif %}
+
+### Card 3: Charging rules with attributes
+type: entity
+entity: sensor.custom_charging_rules
+name: Custom Charging Rules
+icon: mdi:battery-charging
+attribute: rules
